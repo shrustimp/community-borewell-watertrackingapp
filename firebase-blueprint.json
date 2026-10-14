@@ -1,0 +1,142 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered user profile with address and account state",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer", "supplier", "admin"] },
+        "address": { "type": "string" },
+        "locality": { "type": "string" },
+        "district": { "type": "string" },
+        "state": { "type": "string" },
+        "pinCode": { "type": "string" },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended", "pending"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "fullName", "email", "phone", "role", "locality", "pinCode", "accountStatus"]
+    },
+    "SupplierProfile": {
+      "title": "SupplierProfile",
+      "description": "Verified water tanker fleet owner and pricing terms",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "businessName": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "tankerCapacityLiters": { "type": "number" },
+        "pricePerTanker": { "type": "number" },
+        "pricePerKiloliter": { "type": "number" },
+        "waterCategories": { "type": "array" },
+        "serviceAreas": { "type": "array" },
+        "operatingHours": { "type": "string" },
+        "waterSourceInfo": { "type": "string" },
+        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "suspended"] },
+        "averageRating": { "type": "number" },
+        "completedDeliveriesCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "businessName", "ownerName", "phone", "tankerCapacityLiters", "pricePerTanker", "approvalStatus"]
+    },
+    "WaterRequest": {
+      "title": "WaterRequest",
+      "description": "Customer water request broadcast",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "requestType": { "type": "string" },
+        "numberOfTankers": { "type": "number" },
+        "tankerCapacityLiters": { "type": "number" },
+        "totalQuantityLiters": { "type": "number" },
+        "waterCategory": { "type": "string" },
+        "priority": { "type": "string" },
+        "preferredDate": { "type": "string" },
+        "preferredTime": { "type": "string" },
+        "requestStatus": { "type": "string", "enum": ["OPEN", "ACCEPTED", "CANCELLED", "EXPIRED"] }
+      },
+      "required": ["requestId", "customerId", "totalQuantityLiters", "waterCategory", "preferredDate", "requestStatus"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Accepted water delivery contract and timeline",
+      "type": "object",
+      "properties": {
+        "bookingId": { "type": "string" },
+        "requestId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "agreedPrice": { "type": "number" },
+        "scheduledDate": { "type": "string" },
+        "scheduledTime": { "type": "string" },
+        "bookingStatus": {
+          "type": "string",
+          "enum": ["REQUESTED", "ACCEPTED", "SCHEDULED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "REJECTED"]
+        },
+        "deliveredAt": { "type": "string" }
+      },
+      "required": ["bookingId", "requestId", "customerId", "supplierId", "agreedPrice", "bookingStatus"]
+    },
+    "Borewell": {
+      "title": "Borewell",
+      "description": "Community shared aquifer asset",
+      "type": "object",
+      "properties": {
+        "borewellId": { "type": "string" },
+        "name": { "type": "string" },
+        "communityName": { "type": "string" },
+        "location": { "type": "string" },
+        "operationalStatus": { "type": "string", "enum": ["active", "maintenance", "low_yield", "dry"] }
+      },
+      "required": ["borewellId", "name", "communityName", "location", "operationalStatus"]
+    },
+    "BorewellUsage": {
+      "title": "BorewellUsage",
+      "description": "Logged meter extraction reading",
+      "type": "object",
+      "properties": {
+        "usageId": { "type": "string" },
+        "borewellId": { "type": "string" },
+        "date": { "type": "string" },
+        "openingMeterReading": { "type": "number" },
+        "closingMeterReading": { "type": "number" },
+        "quantityUsedLiters": { "type": "number" }
+      },
+      "required": ["usageId", "borewellId", "date", "openingMeterReading", "closingMeterReading", "quantityUsedLiters"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Customer and supplier private profiles"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": "SupplierProfile",
+      "description": "Public verified fleet profiles"
+    },
+    "/waterRequests/{requestId}": {
+      "schema": "WaterRequest",
+      "description": "Open resident water demands"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Delivery agreements with timeline state machine"
+    },
+    "/borewells/{borewellId}": {
+      "schema": "Borewell",
+      "description": "Community shared wellhead assets"
+    },
+    "/borewellUsage/{usageId}": {
+      "schema": "BorewellUsage",
+      "description": "Audit meter logs for pumping cycles"
+    }
+  }
+}

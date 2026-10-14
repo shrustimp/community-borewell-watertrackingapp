@@ -1,0 +1,7 @@
+{
+  "name": "JalaConnect – Community Water Supply",
+  "description": "Community water tanker scheduling and borewell management platform connecting residents with trusted local suppliers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

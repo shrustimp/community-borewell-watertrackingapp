@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isApprovedSupplier() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/suppliers/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/suppliers/$(request.auth.uid)).data.approvalStatus == 'approved';
+    }
+
+    // 1. Users collection
+    // Users can read and update only their own profile. Cannot change role or accountStatus.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && 
+        request.resource.data.role in ['customer', 'supplier'] &&
+        request.resource.data.accountStatus == 'active';
+      allow update: if isOwner(userId) && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'accountStatus', 'uid', 'createdAt'])
+        || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 2. Suppliers collection
+    // Public read for approved suppliers, owners can edit their profile without modifying approvalStatus
+    match /suppliers/{supplierId} {
+      allow read: if resource.data.approvalStatus == 'approved' || isOwner(supplierId) || isAdmin();
+      allow create: if isOwner(supplierId) && 
+        request.resource.data.approvalStatus == 'pending' &&
+        request.resource.data.uid == request.auth.uid;
+      allow update: if (isOwner(supplierId) && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['approvalStatus', 'rejectionReason', 'averageRating', 'uid', 'createdAt']))
+        || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 3. Water Requests collection
+    // Customers can create requests for themselves. Open requests readable by approved suppliers.
+    match /waterRequests/{requestId} {
+      allow read: if (isSignedIn() && resource.data.customerId == request.auth.uid) ||
+        (isApprovedSupplier() && resource.data.requestStatus == 'OPEN') ||
+        isAdmin();
+      allow create: if isSignedIn() && 
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.requestStatus == 'OPEN';
+      allow update: if (isSignedIn() && resource.data.customerId == request.auth.uid && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requestStatus', 'updatedAt']) &&
+        request.resource.data.requestStatus == 'CANCELLED') ||
+        (isApprovedSupplier() && resource.data.requestStatus == 'OPEN' && request.resource.data.requestStatus == 'ACCEPTED') ||
+        isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 4. Bookings collection
+    // Readable only by the assigned customer, assigned supplier, or admin.
+    match /bookings/{bookingId} {
+      allow read: if isSignedIn() && (
+        resource.data.customerId == request.auth.uid || 
+        resource.data.supplierId == request.auth.uid || 
+        isAdmin()
+      );
+      // Created atomically when supplier accepts request
+      allow create: if isApprovedSupplier() && 
+        request.resource.data.supplierId == request.auth.uid;
+      // Valid state transitions enforced
+      allow update: if isSignedIn() && (
+        // Supplier can advance status
+        (resource.data.supplierId == request.auth.uid && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookingStatus', 'statusHistory', 'updatedAt', 'deliveredAt'])) ||
+        // Customer can cancel before OUT_FOR_DELIVERY
+        (resource.data.customerId == request.auth.uid && 
+          resource.data.bookingStatus in ['REQUESTED', 'ACCEPTED', 'SCHEDULED'] &&
+          request.resource.data.bookingStatus == 'CANCELLED') ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 5. Reviews collection
+    // Only completed booking customer can create review, no duplicates
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && 
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+      allow update, delete: if isAdmin();
+    }
+
+    // 6. Complaints collection
+    // Customers can file complaints for their bookings; admin updates status
+    match /complaints/{complaintId} {
+      allow read: if isSignedIn() && (
+        resource.data.customerId == request.auth.uid ||
+        resource.data.supplierId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && request.resource.data.customerId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 7. Borewells collection
+    // Community shared records readable by community members
+    match /borewells/{borewellId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn(); // Community managers & admins
+      allow delete: if isAdmin();
+    }
+
+    // 8. Borewell Usage Logs collection
+    // Readable by community residents, valid meter delta required
+    match /borewellUsage/{usageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && 
+        request.resource.data.closingMeterReading >= request.resource.data.openingMeterReading;
+      allow update, delete: if isAdmin();
+    }
+
+    // 9. Notifications collection
+    match /notifications/{notifId} {
+      allow read, update: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow create: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+    }
+  }
+}
